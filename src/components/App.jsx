@@ -1,110 +1,222 @@
 import React, { Component } from 'react';
-import { fetchImages } from './Services/Api';
-import { Searchbar } from './Searchbar/Searchbar';
-import { Loader } from './Loader/Loader';
-import { ImageGallery } from './ImageGallery/ImageGallery';
-import { Button } from './Button/Button';
-import { animateScroll } from 'react-scroll';
-import { Modal } from './Modal/Modal';
+import { ToastContainer,toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css'
+import Searchbar  from './Searchbar/Searchbar';
+import ImageGallery  from './ImageGallery/ImageGallery';
+import Modal  from './ImageGallery/Modal/Modal';
+import Button  from './Button/Button';
+import Loader  from './Loader/Loader';
+import { fetchImages } from '../components/services/fetchImages.';
 
 
-export class App extends Component {
+export default class App extends Component {
   state = {
-    searchQuery: '',
+    searchRequest: '',
     images: [],
-    page: 1,
-    per_page: 12,
-    isLoading: false,
-    loadMore: false,
+    galleryPage: 1,
     error: null,
-    showModal: false,
-    largeImageURL: 'largeImageURL',
-    id: null,
+    isLoading: false,
+    showModal: null,
   };
 
-  componentDidUpdate(_, prevState) {
-    // console.log(prevState.page);
-    // console.log(this.state.page);
-    const { searchQuery, page } = this.state;
-    if (prevState.searchQuery !== searchQuery || prevState.page !== page) {
-      this.getImages(searchQuery, page);
+  componentDidUpdate(prevProps, prevState) {
+    const prevSearch = prevState.searchRequest;
+    const currentSearch = this.state.searchRequest;
+    const prevGalleryPage = prevState.galleryPage;
+    const currentGalleryPage = this.state.galleryPage;
+
+    if (
+      prevSearch !== currentSearch ||
+      prevGalleryPage !== currentGalleryPage
+    ) {
+      this.updateImages();
     }
   }
 
-  getImages = async (query, page) => {
+  updateImages() {
+    const { searchRequest, galleryPage } = this.state;
     this.setState({ isLoading: true });
-    if (!query) {
-      return;
-    }
-    try {
-      const { hits, totalHits } = await fetchImages(query, page);
-    //   console.log(hits, totalHits);
-      this.setState(prevState => ({
-        images: [...prevState.images, ...hits],
-        loadMore: this.state.page < Math.ceil(totalHits / this.state.per_page),
-      }));
-    } catch (error) {
-      this.setState({ error: error.message });
-    } finally {
-      this.setState({ isLoading: false });
-    }
-  };
+    setTimeout(() => {
+      try {
+        fetchImages(searchRequest, galleryPage).then(data => {
+          if (!data.data.hits.length) {
+            return toast.error(
+              'There is no images found with that search request'
+            );
+          }
+          const mappedImages = data.data.hits.map(
+            ({ id, webformatURL, tags, largeImageURL }) => ({
+              id,
+              webformatURL,
+              tags,
+              largeImageURL,
+            })
+          );
+          this.setState({
+            images: [...this.state.images, ...mappedImages],
+          });
+        });
+      } catch (error) {
+        this.setState({ error });
+      } finally {
+        this.setState({ isLoading: false });
+      }
+    }, 1000);
+  }
 
-  formSubmit = searchQuery => {
+  handleSearchSubmit = searchRequest => {
     this.setState({
-      searchQuery,
+      searchRequest,
       images: [],
-      page: 1,
-      loadMore: false,
+      galleryPage: 1,
     });
   };
 
-  onloadMore = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
-    this.scrollOnMoreButton();
+  loadMore = () => {
+    this.setState(prevState => ({
+      galleryPage: prevState.galleryPage + 1,
+    }));
   };
 
-  scrollOnMoreButton = () => {
-    animateScroll.scrollToBottom({
-      duration: 1000,
-      delay: 10,
-      smooth: 'linear',
-    });
-  };
-
-  openModal = largeImageURL => {
-    // console.log(largeImageURL);
+  showModalImage = id => {
+    const image = this.state.images.find(image => image.id === id);
     this.setState({
-      showModal: true,
-      largeImageURL: largeImageURL,
+      showModal: {
+        largeImageURL: image.largeImageURL,
+        tags: image.tags,
+      },
     });
   };
 
-  closeModal = () => {
-    this.setState({
-      showModal: false,
-    });
+  closeModalImage = () => {
+    this.setState({ showModal: null });
   };
 
   render() {
-    const { images, isLoading, loadMore, page, showModal, largeImageURL } =
-      this.state;
+    const { images, isLoading, error, showModal } = this.state;
     return (
       <>
-        <Searchbar onSubmit={this.formSubmit} />
-
-        {isLoading ? (
-          <Loader />
-        ) : (
-          <ImageGallery images={images} openModal={this.openModal} />
+        <Searchbar onSearch={this.handleSearchSubmit} />
+        {error && toast.error(`Whoops, something went wrong: ${error.message}`)}
+        {isLoading && <Loader color={'#3f51b5'} size={32} />}
+        {images.length > 0 && (
+          <>
+            <ImageGallery images={images} handlePreview={this.showModalImage} />
+            <Button loadMore={this.loadMore} />
+          </>
         )}
-
-        {loadMore && <Button onloadMore={this.onloadMore} page={page} />}
-
         {showModal && (
-          <Modal largeImageURL={largeImageURL} onClose={this.closeModal} />
+          <Modal
+            lgImage={showModal.largeImageURL}
+            tags={showModal.tags}
+            closeModal={this.closeModalImage}
+          />
         )}
+        <ToastContainer autoClose={3000} />
       </>
     );
   }
 }
+
+
+
+// export class App extends Component {
+//   state = {
+//     searchQuery: '',
+//     images: [],
+//     page: 1,
+//     per_page: 12,
+//     isLoading: false,
+//     loadMore: false,
+//     error: null,
+//     showModal: false,
+//     largeImageURL: 'largeImageURL',
+//     id: null,
+//   };
+
+//   componentDidUpdate(_, prevState) {
+//     const { searchQuery, page } = this.state;
+//     if (prevState.searchQuery !== searchQuery || prevState.page !== page) {
+//       this.getImages(searchQuery, page);
+//     }
+//   }
+
+//   getImages = async (query, page) => {
+//     this.setState({ isLoading: true });
+//     if (!query) {
+//       return;
+//     }
+//     try {
+//       const { hits, totalHits } = await fetchImages(query, page);
+//     //   console.log(hits, totalHits);
+//       this.setState(prevState => ({
+//         images: [...prevState.images, ...hits],
+//         loadMore: this.state.page < Math.ceil(totalHits / this.state.per_page),
+//       }));
+//     } catch (error) {
+//       this.setState({ error: error.message });
+//     } finally {
+//       this.setState({ isLoading: false });
+//     }
+//   };
+
+//   formSubmit = searchQuery => {
+//     this.setState({
+//       searchQuery,
+//       images: [],
+//       page: 1,
+//       loadMore: false,
+//     });
+//   };
+
+//   onloadMore = () => {
+//     this.setState(prevState => ({ page: prevState.page + 1 }));
+//     this.scrollOnMoreButton();
+//   };
+
+//   scrollOnMoreButton = () => {
+//     animateScroll.scrollToBottom({
+//       duration: 1000,
+//       delay: 10,
+//       smooth: 'linear',
+//     });
+//   };
+
+//   openModal = largeImageURL => {
+//     // console.log(largeImageURL);
+//     this.setState({
+//       showModal: true,
+//       largeImageURL: largeImageURL,
+//     });
+//   };
+
+//   closeModal = () => {
+//     this.setState({
+//       showModal: false,
+//     });
+//   };
+
+//   render() {
+//     const { images, isLoading, loadMore, page, showModal, largeImageURL } =
+//       this.state;
+//     return (
+//       <>
+//         <Searchbar onSubmit={this.formSubmit} />
+
+//         {isLoading ? (
+//           <Loader />
+//         ) : (
+//           <ImageGallery images={images} openModal={this.openModal} />
+//         )}
+
+//         {loadMore && <Button onloadMore={this.onloadMore} page={page} />}
+
+//         {showModal && (
+//           <Modal
+//             largeImageURL={largeImageURL}
+//             onClose={this.closeModal} />
+//         )}
+//       </>
+//     );
+//   }
+// }
