@@ -6,7 +6,7 @@ import { ImageGallery } from './ImageGallery/ImageGallery';
 import { Button } from './Button/Button';
 import { animateScroll } from 'react-scroll';
 import { Modal } from './Modal/Modal';
-import ''
+
 
 export class App extends Component {
   state = {
